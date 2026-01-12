@@ -16,10 +16,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const prompt = `Gen ${range}: ${skill}, ${type}.
-Sep row by "<_>", parts by "|->".
-Format: Desc |-> Op(JSON/[]) |-> Ans |-> Skill |-> Type.
-Exact count required.`;
+        const prompt = `${range}, ['${skill}'], ['${type}']`;
 
         const response = await fetch(`${DIFY_HOST}/workflows/run`, {
             method: "POST",
@@ -31,7 +28,6 @@ Exact count required.`;
                 inputs: {
                     query: prompt,
                     request: prompt,
-                    text: prompt,
                 },
                 response_mode: "blocking",
                 user: "user-" + Math.random().toString(36).substring(7),
@@ -45,84 +41,101 @@ Exact count required.`;
         }
 
         const data = await response.json();
+        console.log("Dify Raw Response:", JSON.stringify(data, null, 2));
 
-        let resultString = data.result || "";
-        if (!resultString && data.data?.outputs) {
-            resultString = data.data.outputs.result || data.data.outputs.text || "";
-        }
-        if (!resultString && data.answer) {
-            resultString = data.answer;
-        }
+        let resultString = "";
+        if (data.result) resultString = data.result;
+        else if (data.outputs?.result) resultString = data.outputs.result;
+        else if (data.outputs?.text) resultString = data.outputs.text;
+        else if (data.data?.outputs?.result) resultString = data.data.outputs.result;
+        else if (data.data?.outputs?.text) resultString = data.data.outputs.text;
+        else if (data.answer) resultString = data.answer;
 
-        const questions = parseDifyCSV(resultString);
-        return NextResponse.json({ questions });
+        const questions = parseDifyCSV(resultString, skill, type);
+        return NextResponse.json({ questions, raw: resultString });
     } catch (error: any) {
         console.error("Internal Server Error:", error);
         return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
     }
 }
 
-function parseDifyCSV(raw: string): Question[] {
-    // Basic cleanup of markdown artifacts
-    let cleanRaw = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+function parseDifyCSV(raw: string, defaultSkill: SkillType, defaultType: QuestionType): Question[] {
+    let cleanRaw = raw.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").trim();
 
-    // Split by <_> but also fallback to newlines if <_> is missing
     let rows = cleanRaw.split("<_>").filter((row) => row.trim().length > 0);
     if (rows.length <= 1 && cleanRaw.includes("|->") && cleanRaw.includes("\n")) {
-        // Fallback: maybe it used newlines instead of <_>
-        rows = cleanRaw.split("\n").filter(row => row.includes("|->"));
+        rows = cleanRaw.split("\n").filter((row) => row.includes("|->"));
     }
 
     const questions: Question[] = [];
 
     rows.forEach((row) => {
-        const parts = row.split("|->").map((p) => p.trim());
+        // Attempt 1: Standard pipe-separated parsing
+        if (row.includes("|->")) {
+            const parts = row.split("|->").map((p) => p.trim());
+            if (parts.length >= 2) {
+                let description = parts[0];
+                let optionsStr = parts.length >= 5 ? parts[1] : "";
+                let answer = parts.length >= 5 ? parts[2] : parts[1];
+                let skill = (parts.length >= 5 ? parts[3] : defaultSkill) as SkillType;
+                let type = (parts.length >= 5 ? parts[4] : defaultType) as QuestionType;
 
-        if (parts.length < 4) return;
+                // Cleanup options
+                let options: string[] | null = null;
+                if (type === "Multiple Choice") {
+                    try {
+                        const sanitized = (optionsStr || "").replace(/'/g, '"');
+                        options = JSON.parse(sanitized);
+                    } catch (e) {
+                        options = (optionsStr || "")
+                            .replace(/[\[\]']/g, "")
+                            .split(",")
+                            .map((o) => o.trim())
+                            .filter((o) => o.length > 0);
+                    }
+                }
 
-        let description = "";
-        let optionsStr = "";
-        let answer = "";
-        let skillStr = "";
-        let typeStr = "";
+                questions.push({
+                    id: crypto.randomUUID(),
+                    description,
+                    options,
+                    answer,
+                    skill,
+                    type,
+                });
+                return;
+            }
+        }
 
-        if (parts.length === 5) {
-            [description, optionsStr, answer, skillStr, typeStr] = parts;
-        } else if (parts.length === 4) {
-            [description, answer, skillStr, typeStr] = parts;
-            if (description.includes("[") && description.includes("]")) {
-                const match = description.match(/\[.*\]/);
-                if (match) {
-                    optionsStr = match[0];
-                    description = description.replace(optionsStr, "").trim();
+        // Attempt 2: Regex-based Key-Value extraction (Fallback)
+        const descMatch = row.match(/(?:Description|1\.|2\.|3\.|4\.|5\.):\s*([\s\S]*?)(?=Options:|Answer:|$)/i);
+        const optMatch = row.match(/Options:\s*([\s\S]*?)(?=Answer:|$)/i);
+        const ansMatch = row.match(/Answer:\s*([\s\S]*?)(?=Skill:|Type:|$)/i);
+
+        if (descMatch && ansMatch) {
+            let options: string[] | null = null;
+            if (defaultType === "Multiple Choice" && optMatch) {
+                const optStr = optMatch[1].trim();
+                try {
+                    options = JSON.parse(optStr.replace(/'/g, '"'));
+                } catch (e) {
+                    options = optStr
+                        .replace(/[\[\]']/g, "")
+                        .split(",")
+                        .map((o) => o.trim())
+                        .filter((o) => o.length > 0);
                 }
             }
+
+            questions.push({
+                id: crypto.randomUUID(),
+                description: descMatch[1].trim(),
+                options: options || (defaultType === "Multiple Choice" ? [] : null),
+                answer: ansMatch[1].trim(),
+                skill: defaultSkill,
+                type: defaultType,
+            });
         }
-
-        const type = (typeStr || "Multiple Choice") as QuestionType;
-        const skill = (skillStr || "Reading") as SkillType;
-
-        let options: string[] | null = null;
-        if (type === "Multiple Choice") {
-            try {
-                const sanitized = optionsStr.replace(/'/g, '"');
-                options = JSON.parse(sanitized);
-            } catch (e) {
-                options = optionsStr
-                    .replace(/[\[\]']/g, "")
-                    .split(",")
-                    .map((o) => o.trim());
-            }
-        }
-
-        questions.push({
-            id: crypto.randomUUID(),
-            description,
-            options,
-            answer,
-            skill,
-            type,
-        });
     });
 
     return questions;

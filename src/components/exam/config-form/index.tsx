@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { Input } from "@/components/base/input/input";
 import { Label } from "@/components/base/input/label";
 import { SkillType, QuestionType, useExamStore } from "@/store/use-exam-store";
+import { Badge } from "@/components/base/badges/badges";
 
 export const ConfigForm = () => {
     const router = useRouter();
@@ -17,6 +18,10 @@ export const ConfigForm = () => {
     const [selectedTypes, setSelectedTypes] = useState<QuestionType[]>(["Multiple Choice"]);
 
     const handleGenerate = () => {
+        if (questionCount === 0) {
+            return;
+        }
+
         if (selectedSkills.length === 0 || selectedTypes.length === 0) {
             alert("Please select at least one skill and one question type.");
             return;
@@ -58,10 +63,13 @@ export const ConfigForm = () => {
                         type="number"
                         value={questionCount.toString()}
                         onChange={(val: string) => {
-                            const num = parseInt(val) || 1;
-                            setQuestionCount(Math.max(1, Math.min(50, num)));
+                            const num = parseInt(val) || 0;
+                            setQuestionCount(Math.max(0, Math.min(100, num)));
                         }}
                         placeholder="E.g. 10"
+                        isRequired
+                        isInvalid={questionCount === 0}
+                        hint={questionCount === 0 ? "Must be more than 0." : undefined}
                     />
                 </div>
 
@@ -71,7 +79,17 @@ export const ConfigForm = () => {
                         {(["Reading", "Writing", "Speaking", "Listening"] as SkillType[]).map((skill) => (
                             <Checkbox
                                 key={skill}
-                                label={skill}
+                                label={
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span>{skill}</span>
+                                        {skill === "Speaking" && (
+                                            <Badge size="sm" color="warning" className="text-[10px] py-0 px-1.5 whitespace-nowrap">
+                                                Coming Soon
+                                            </Badge>
+                                        )}
+                                    </div>
+                                }
+                                isDisabled={skill === "Speaking"}
                                 isSelected={selectedSkills.includes(skill)}
                                 onChange={() => toggleSkill(skill)}
                             />
@@ -85,7 +103,17 @@ export const ConfigForm = () => {
                         {(["Multiple Choice", "Essay"] as QuestionType[]).map((type) => (
                             <Checkbox
                                 key={type}
-                                label={type}
+                                label={
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span>{type}</span>
+                                        {type === "Essay" && (
+                                            <Badge size="sm" color="warning" className="text-[10px] py-0 px-1.5 whitespace-nowrap">
+                                                Coming Soon
+                                            </Badge>
+                                        )}
+                                    </div>
+                                }
+                                isDisabled={type === "Essay"}
                                 isSelected={selectedTypes.includes(type)}
                                 onChange={() => toggleType(type)}
                             />

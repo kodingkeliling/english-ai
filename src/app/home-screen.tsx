@@ -7,6 +7,7 @@ import { useExamStore } from "@/store/use-exam-store";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { ThemeToggle } from "@/components/foundations/theme-toggle";
 import { UntitledLogoMinimal } from "@/components/foundations/logo/untitledui-logo-minimal";
+import { Badge } from "@/components/base/badges/badges";
 
 export const HomeScreen = () => {
     const exams = useExamStore((state) => state.exams);
@@ -21,13 +22,14 @@ export const HomeScreen = () => {
                 <div className="flex items-center gap-2">
                     <UntitledLogoMinimal className="size-8" />
                     <span className="text-xl font-bold text-primary">Inggris AI</span>
+                    <Badge color="success">Free</Badge>
                 </div>
                 <ThemeToggle />
             </header>
 
             <main className="relative flex flex-1 flex-col items-center">
                 {/* Hero & Config Form */}
-                <section className="mx-auto flex w-full max-w-container flex-col items-center gap-12 py-16 lg:flex-row lg:items-start lg:justify-between lg:px-8 lg:py-24">
+                <section className="mx-auto flex w-full max-w-container flex-col items-center justify-center gap-12 py-16 lg:flex-row lg:items-start lg:justify-between lg:px-8 lg:py-24">
                     <div className="flex max-w-xl flex-col gap-6 text-center lg:text-left">
                         <div className="flex justify-center lg:justify-start">
                             <FeaturedIcon icon={Zap} color="brand" theme="light" size="lg" />
@@ -54,7 +56,7 @@ export const HomeScreen = () => {
                         </div>
                     </div>
 
-                    <div className="z-10 w-full lg:max-w-md">
+                    <div className="z-10 w-full lg:max-w-md flex w-full justify-center">
                         <ConfigForm />
                     </div>
                 </section>

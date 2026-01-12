@@ -7,6 +7,7 @@ import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-ic
 import { useEffect } from "react";
 import { useExamStore, useActiveExam } from "@/store/use-exam-store";
 import { cx } from "@/utils/cx";
+import { Markdown } from "@/components/shared-assets/markdown";
 
 export const ResultScreen = () => {
     const router = useRouter();
@@ -103,9 +104,7 @@ export const ResultScreen = () => {
                                         )}
                                     </div>
 
-                                    <p className="text-md font-medium text-primary leading-relaxed whitespace-pre-wrap">
-                                        {q.description}
-                                    </p>
+                                    <Markdown content={q.description} className="text-md font-medium text-primary" />
 
                                     <div className="flex flex-col gap-2">
                                         <div className="text-sm font-semibold text-secondary">Your Answer:</div>
@@ -115,20 +114,26 @@ export const ResultScreen = () => {
                                                 ? (isCorrect ? "border-success-200 bg-success-50 text-success-700" : "border-error-200 bg-error-50 text-error-700")
                                                 : "border-secondary bg-secondary text-primary"
                                         )}>
-                                            {userAnswers[q.id] || <span className="italic text-tertiary">Not answered</span>}
+                                            {userAnswers[q.id] ? (
+                                                <Markdown content={userAnswers[q.id]} className="text-sm font-medium" />
+                                            ) : (
+                                                <span className="italic text-tertiary">Not answered</span>
+                                            )}
                                         </div>
 
                                         {!isCorrect && q.type === "Multiple Choice" && (
                                             <div className="mt-1">
                                                 <div className="text-sm font-semibold text-success-700">Correct Answer:</div>
-                                                <div className="text-sm text-success-700 font-medium">{q.answer}</div>
+                                                <div className="text-sm text-success-700 font-medium">
+                                                    <Markdown content={q.answer} className="text-sm font-medium" />
+                                                </div>
                                             </div>
                                         )}
 
                                         {q.type === "Essay" && (
                                             <div className="mt-2 rounded-lg bg-brand-soft/10 border border-brand-200 p-4">
                                                 <div className="text-sm font-semibold text-brand-700">Evaluation Criteria / Sample Answer:</div>
-                                                <p className="mt-1 text-sm text-brand-700 whitespace-pre-wrap">{q.answer}</p>
+                                                <Markdown content={q.answer} className="mt-1 text-sm text-brand-700" />
                                             </div>
                                         )}
                                     </div>

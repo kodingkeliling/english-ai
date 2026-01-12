@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle, ChevronLeft, Flag01, LayoutGrid02, Zap } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
@@ -11,6 +11,9 @@ import { AudioPlayer } from "@/components/exam/audio-player";
 import { ThemeToggle } from "@/components/foundations/theme-toggle";
 import { useExamStore, useActiveExam, Question } from "@/store/use-exam-store";
 import { cx } from "@/utils/cx";
+import { Markdown } from "@/components/shared-assets/markdown";
+import { Dialog, DialogTrigger, Modal, ModalOverlay } from "@/components/application/modals/modal";
+import { Heading as AriaHeading } from "react-aria-components";
 
 export const PlaygroundScreen = () => {
     const router = useRouter();
@@ -18,6 +21,7 @@ export const PlaygroundScreen = () => {
     const id = params.id as string;
     const activeExam = useActiveExam();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const {
         selectExam,
         setQuestions,
@@ -29,55 +33,36 @@ export const PlaygroundScreen = () => {
         finishExam,
         deleteExam,
         exams,
+        hasHydrated,
     } = useExamStore();
 
     const [generatingProgress, setGeneratingProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const isGenerating = useRef(false);
 
-    // Sync active exam with URL
-    useEffect(() => {
-        if (id && id !== activeExam?.id) {
-            selectExam(id);
-        }
-    }, [id, activeExam?.id, selectExam]);
+    const generateAllQuestions = useCallback(async () => {
+        if (isGenerating.current) return;
+        isGenerating.current = true;
 
-    // If no active exam and not found in list, redirect back home
-    useEffect(() => {
-        if (id && !exams.find(e => e.id === id)) {
-            router.push("/");
-        }
-    }, [id, exams, router]);
-
-    // Handle initial generation if status is idle
-    useEffect(() => {
-        if (activeExam?.status === "idle" && activeExam.config.questionCount > 0) {
-            generateAllQuestions();
-        }
-    }, [activeExam?.status, activeExam?.config]);
-
-    if (!activeExam) return null;
-
-    const { config, questions, status, currentQuestionIndex, userAnswers } = activeExam;
-
-    const generateAllQuestions = async () => {
         setStatus("generating");
         setError(null);
         setGeneratingProgress(0);
 
-        const total = config.questionCount;
-        const chunkSize = 5;
+        const chunkSize = 1;
+        const total = activeExam!.config!.questionCount;
         const chunks = Math.ceil(total / chunkSize);
 
         let allQuestions: Question[] = [];
 
         try {
             for (let i = 0; i < chunks; i++) {
-                const start = i * chunkSize + 1;
-                const end = Math.min((i + 1) * chunkSize, total);
-                const range = `question ${start} - ${end}`;
+                const range = `question nomor ${i + 1}`;
 
-                const skill = config.skills[i % config.skills.length];
-                const type = config.types[i % config.types.length];
+                const config = activeExam!.config;
+                const skill = config.skills[Math.floor(Math.random() * config.skills.length)];
+                const type = config.types[Math.floor(Math.random() * config.types.length)];
+
+                const prompt = `${range}, ['${skill}'], ['${type}']`;
 
                 const response = await fetch("/api/generate", {
                     method: "POST",
@@ -85,12 +70,14 @@ export const PlaygroundScreen = () => {
                     body: JSON.stringify({ range, skill, type }),
                 });
 
+                const chunkData = await response.json();
+                console.log(`Chunk ${i + 1} response:`, chunkData);
+
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || "Failed to generate chunk");
+                    throw new Error(chunkData.error || "Failed to generate chunk");
                 }
 
-                const { questions: chunkQuestions } = await response.json();
+                const { questions: chunkQuestions } = chunkData;
                 allQuestions = [...allQuestions, ...chunkQuestions];
 
                 setGeneratingProgress(Math.round(((i + 1) / chunks) * 100));
@@ -104,10 +91,36 @@ export const PlaygroundScreen = () => {
         } catch (err: any) {
             console.error(err);
             setError(err.message || "Failed to generate questions. Please try again.");
-            // Reset status so user can retry
-            setStatus("idle");
+            // Do NOT set status back to idle automatically to prevent loops
+            // setStatus("idle"); 
+        } finally {
+            isGenerating.current = false;
         }
-    };
+    }, [activeExam?.config, setStatus, setQuestions]);
+    // Sync active exam with URL
+    useEffect(() => {
+        if (hasHydrated && id && id !== activeExam?.id) {
+            selectExam(id);
+        }
+    }, [id, activeExam?.id, selectExam, hasHydrated]);
+
+    // If no active exam and not found in list, redirect back home
+    useEffect(() => {
+        if (hasHydrated && id && !exams.find(e => e.id === id)) {
+            router.push("/");
+        }
+    }, [id, exams, router, hasHydrated]);
+
+    // Handle initial generation if status is idle
+    useEffect(() => {
+        if (activeExam?.status === "idle" && (activeExam?.config?.questionCount || 0) > 0) {
+            generateAllQuestions();
+        }
+    }, [activeExam?.status, generateAllQuestions]);
+
+    if (!activeExam) return null;
+
+    const { config, questions, status, currentQuestionIndex, userAnswers } = activeExam;
 
     if (status === "generating") {
         return (
@@ -184,9 +197,7 @@ export const PlaygroundScreen = () => {
 
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
-                        <Button color="secondary" size="sm" iconLeading={LayoutGrid02} onClick={() => setIsMobileMenuOpen(true)}>
-                            <span className="hidden md:inline">Overview</span>
-                        </Button>
+                        <Button className="md:hidden" color="secondary" size="sm" iconLeading={LayoutGrid02} onClick={() => setIsMobileMenuOpen(true)} />
                     </div>
                 </div>
             </header>
@@ -259,16 +270,14 @@ export const PlaygroundScreen = () => {
                                     {currentQuestion.type}
                                 </span>
                             </div>
-                            <Button color="tertiary" size="sm" iconLeading={Flag01} className="max-md:px-2" />
+                            {/* <Button color="tertiary" size="sm" iconLeading={Flag01} className="max-md:px-2" /> */}
                         </div>
 
                         <div className="flex flex-col gap-4 md:gap-6">
                             {currentQuestion.skill === "Listening" ? (
                                 <AudioPlayer text={currentQuestion.description} />
                             ) : (
-                                <h2 className="text-md md:text-lg font-medium text-primary leading-relaxed whitespace-pre-wrap">
-                                    {currentQuestion.description}
-                                </h2>
+                                <Markdown content={currentQuestion.description} className="text-md md:text-lg font-medium text-primary" />
                             )}
                         </div>
 
@@ -307,10 +316,7 @@ export const PlaygroundScreen = () => {
                                 size="lg"
                                 color="primary"
                                 iconTrailing={CheckCircle}
-                                onClick={() => {
-                                    finishExam();
-                                    router.push(`/result/${activeExam.id}`);
-                                }}
+                                onClick={() => setIsConfirmModalOpen(true)}
                                 className="flex-1 md:flex-initial"
                             >
                                 Finish Exam
@@ -330,6 +336,46 @@ export const PlaygroundScreen = () => {
                     </div>
                 </section>
             </main>
+            <DialogTrigger isOpen={isConfirmModalOpen} onOpenChange={setIsConfirmModalOpen}>
+                <ModalOverlay isDismissable>
+                    <Modal>
+                        <Dialog>
+                            <div className="relative w-full overflow-hidden rounded-2xl bg-primary shadow-xl sm:max-w-md">
+                                <div className="flex flex-col gap-4 px-4 pt-5 sm:flex-row sm:px-6 sm:pt-6">
+                                    <div className="flex-shrink-0">
+                                        <FeaturedIcon icon={CheckCircle} color="brand" theme="light" size="lg" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <AriaHeading slot="title" className="text-lg font-semibold text-primary">
+                                            Finish Exam?
+                                        </AriaHeading>
+                                        <p className="text-sm text-tertiary">
+                                            Are you sure you want to finish the exam? You won't be able to change your answers after this.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col-reverse gap-3 p-4 pt-6 sm:flex-row sm:px-6 sm:pb-6">
+                                    <Button color="secondary" size="lg" onClick={() => setIsConfirmModalOpen(false)} className="flex-1">
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        color="primary"
+                                        size="lg"
+                                        onClick={() => {
+                                            setIsConfirmModalOpen(false);
+                                            finishExam();
+                                            router.push(`/result/${activeExam.id}`);
+                                        }}
+                                        className="flex-1"
+                                    >
+                                        Yes, Finish
+                                    </Button>
+                                </div>
+                            </div>
+                        </Dialog>
+                    </Modal>
+                </ModalOverlay>
+            </DialogTrigger>
         </div>
     );
 };

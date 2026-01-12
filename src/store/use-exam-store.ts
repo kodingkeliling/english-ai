@@ -36,8 +36,10 @@ export interface ExamAttempt {
 interface ExamState {
     exams: ExamAttempt[];
     activeExamId: string | null;
+    hasHydrated: boolean;
 
     // Actions
+    setHasHydrated: (val: boolean) => void;
     createNewExam: (config: ExamConfig) => string;
     selectExam: (id: string) => void;
     deleteExam: (id: string) => void;
@@ -57,6 +59,9 @@ export const useExamStore = create<ExamState>()(
         (set, get) => ({
             exams: [],
             activeExamId: null,
+            hasHydrated: false,
+
+            setHasHydrated: (val) => set({ hasHydrated: val }),
 
             createNewExam: (config) => {
                 const id = crypto.randomUUID();
@@ -144,6 +149,9 @@ export const useExamStore = create<ExamState>()(
         }),
         {
             name: "inggris-ai-v2-storage",
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true);
+            },
         }
     )
 );

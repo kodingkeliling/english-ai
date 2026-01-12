@@ -3,6 +3,8 @@
 import { Radio, RadioGroup } from "react-aria-components";
 import { cx } from "@/utils/cx";
 
+import { Markdown } from "@/components/shared-assets/markdown";
+
 interface QuestionOptionsProps {
     options: string[];
     value: string;
@@ -41,12 +43,12 @@ export const QuestionOptions = ({ options, value, onChange }: QuestionOptionsPro
                                     <div className="size-2 rounded-full bg-white" />
                                 )}
                             </div>
-                            <span className={cx(
-                                "text-md font-medium transition-colors",
+                            <div className={cx(
+                                "text-md font-medium transition-colors flex-1",
                                 isSelected ? "text-brand-700" : "text-primary"
                             )}>
-                                {option}
-                            </span>
+                                <Markdown content={option} isTruncated lineClamp={2} />
+                            </div>
                         </div>
                     )}
                 </Radio>
