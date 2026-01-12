@@ -31,7 +31,7 @@ export const ExamHistory = () => {
                 {exams.map((exam) => (
                     <div
                         key={exam.id}
-                        className="group relative flex flex-col gap-4 rounded-2xl border border-secondary bg-primary p-5 shadow-xs transition-shadow hover:shadow-md"
+                        className="group relative flex flex-col gap-4 rounded-2xl border border-secondary bg-primary p-5 shadow-xs transition-shadow hover:shadow-md w-full"
                     >
                         <div className="flex items-start justify-between">
                             <div className="flex items-start gap-4">
@@ -46,10 +46,10 @@ export const ExamHistory = () => {
                                         {exam.config.questionCount} Questions ({exam.config.skills.join(", ")})
                                     </h3>
                                     <div className="flex items-center gap-3 text-sm text-tertiary">
-                                        <div className="flex items-center gap-1">
+                                        {/* <div className="flex items-center gap-1">
                                             <Calendar className="size-3.5" />
                                             {new Date(exam.createdAt).toLocaleDateString()}
-                                        </div>
+                                        </div> */}
                                         <div className="flex items-center gap-1">
                                             <Clock className="size-3.5" />
                                             {new Date(exam.createdAt).toLocaleDateString([], { hour: '2-digit', minute: '2-digit' })}
@@ -58,7 +58,7 @@ export const ExamHistory = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="items-center gap-2 hidden md:flex">
                                 <Button
                                     size="sm"
                                     color="secondary"
@@ -75,22 +75,32 @@ export const ExamHistory = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between mt-1">
-                            <div className="flex gap-2">
+                        <div className="flex flex-col md:flex-row md:items-center gap-2 justify-between mt-1">
+                            <div className="flex gap-2 w-auto">
                                 {exam.config.types.map(t => (
                                     <span key={t} className="text-xs text-tertiary bg-secondary px-2 py-0.5 rounded-md">
                                         {t}
                                     </span>
                                 ))}
                             </div>
-                            <Button
-                                size="sm"
-                                color={exam.status === "completed" ? "secondary" : "primary"}
-                                iconTrailing={ArrowRight}
-                                onClick={() => handleAction(exam)}
-                            >
-                                {exam.status === "completed" ? "View Result" : "Continue Test"}
-                            </Button>
+                            <div className="flex w-full md:w-auto gap-2">
+                                <Button
+                                    size="sm"
+                                    color="secondary"
+                                    iconLeading={Trash01}
+                                    onClick={() => deleteExam(exam.id)}
+                                    className="md:hidden"
+                                />
+                                <Button
+                                    size="sm"
+                                    color={exam.status === "completed" ? "secondary" : "primary"}
+                                    iconTrailing={ArrowRight}
+                                    onClick={() => handleAction(exam)}
+                                    className="w-full"
+                                >
+                                    {exam.status === "completed" ? "View Result" : "Continue Test"}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 ))}
